@@ -1,0 +1,177 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: backend-code
+  namespace: app
+  labels:
+    app: backend
+data:
+  app.py: |
+    import os
+    import time
+    import random
+    from flask import Flask, jsonify, request, Response
+    from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
+
+    app = Flask(__name__)
+
+    REQUEST_COUNT = Counter('http_requests_total', 'Total HTTP Requests', ['method', 'endpoint', 'http_status'])
+    REQUEST_LATENCY = Histogram('http_request_duration_seconds', 'HTTP Request Duration in Seconds', ['endpoint'], buckets=[0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0])
+    ACTIVE_USERS = Gauge('app_active_users', 'Current number of active users connected')
+    DATABASE_OPERATION_DURATION = Histogram('app_database_operation_duration_seconds', 'Simulated database latency in seconds', ['operation'])
+    ERROR_COUNT = Counter('app_errors_total', 'Total application errors', ['error_type'])
+
+    ACTIVE_USERS.set(random.randint(10, 30))
+
+    @app.before_request
+    def before_request():
+        request.start_time = time.time()
+        if random.random() < 0.2:
+            ACTIVE_USERS.inc(random.randint(1, 2))
+        elif random.random() < 0.2:
+            ACTIVE_USERS.dec(max(1, random.randint(1, 2)))
+
+    @app.after_request
+    def after_request(response):
+        if hasattr(request, 'start_time'):
+            latency = time.time() - request.start_time
+            endpoint = request.endpoint or 'unknown'
+            REQUEST_LATENCY.labels(endpoint=endpoint).observe(latency)
+            REQUEST_COUNT.labels(method=request.method, endpoint=endpoint, http_status=response.status_code).inc()
+        return response
+
+    @app.route('/')
+    def root():
+        return jsonify({"service": "backend-api", "status": "healthy", "version": "1.0.0"})
+
+    @app.route('/healthz')
+    def healthz():
+        return jsonify({"status": "ok"}), 200
+
+    @app.route('/api/data')
+    def get_data():
+        db_start = time.time()
+        time.sleep(random.uniform(0.02, 0.07))
+        DATABASE_OPERATION_DURATION.labels(operation='SELECT').observe(time.time() - db_start)
+        if random.random() < 0.05:
+            ERROR_COUNT.labels(error_type='database_timeout').inc()
+            return jsonify({"error": "Database timeout simulated"}), 503
+        return jsonify({
+            "message": "Data retrieved successfully",
+            "pod_name": os.getenv("POD_NAME", "backend-unknown"),
+            "node_name": os.getenv("NODE_NAME", "kind-node"),
+            "items": ["Metrics Pipeline", "Prometheus Core", "Grafana Dashboards"]
+        }), 200
+
+    @app.route('/api/slow')
+    def slow():
+        sleep_time = random.uniform(0.6, 1.8)
+        time.sleep(sleep_time)
+        return jsonify({"message": f"Slow response completed in {sleep_time:.2f}s"}), 200
+
+    @app.route('/api/error')
+    def error():
+        ERROR_COUNT.labels(error_type='internal_server_error').inc()
+        return jsonify({"error": "Simulated 500 error for alert testing"}), 500
+
+    @app.route('/metrics')
+    def metrics():
+        return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
+
+    if __name__ == '__main__':
+        app.run(host='0.0.0.0', port=8080)
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  namespace: app
+  labels:
+    app: backend
+    tier: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        tier: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+        - name: backend
+          image: python:3.11-slim
+          command:
+            - /bin/sh
+            - -c
+            - |
+              pip install --no-cache-dir flask prometheus-client gunicorn
+              gunicorn --bind 0.0.0.0:8080 --workers 2 --threads 4 app:app
+          workingDir: /app
+          ports:
+            - name: http-metrics
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: code-volume
+              mountPath: /app/app.py
+              subPath: app.py
+      volumes:
+        - name: code-volume
+          configMap:
+            name: backend-code
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend-service
+  namespace: app
+  labels:
+    app: backend
+    tier: api
+spec:
+  type: NodePort
+  selector:
+    app: backend
+  ports:
+    - name: http-metrics
+      port: 8080
+      targetPort: 8080
+      nodePort: 30081
+      protocol: TCP

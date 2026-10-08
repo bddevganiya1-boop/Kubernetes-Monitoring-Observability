@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-generator
+  namespace: app
+  labels:
+    app: load-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: load-generator
+  template:
+    metadata:
+      labels:
+        app: load-generator
+    spec:
+      containers:
+        - name: traffic-generator
+          image: curlimages/curl:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo "Starting background synthetic load generator for observability testing..."
+              while true; do
+                # 80% normal traffic
+                for i in $(seq 1 8); do
+                  curl -s -o /dev/null http://backend-service.app.svc.cluster.local:8080/api/data
+                  sleep 0.5
+                done
+                
+                # 15% slow latency traffic
+                curl -s -o /dev/null http://backend-service.app.svc.cluster.local:8080/api/slow
+                sleep 0.5
+                
+                # 5% error traffic
+                curl -s -o /dev/null http://backend-service.app.svc.cluster.local:8080/api/error
+                sleep 1
+              done
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi

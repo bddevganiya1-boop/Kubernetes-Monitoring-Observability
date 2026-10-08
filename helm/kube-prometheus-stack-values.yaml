@@ -1,0 +1,141 @@
+## kube-prometheus-stack Custom Values Configuration
+## Optimized for Kind Multi-Node Local Cluster & Custom App Monitoring
+
+# ----------------------------------------------------------------------
+# Global Settings
+# ----------------------------------------------------------------------
+global:
+  rbac:
+    create: true
+
+# ----------------------------------------------------------------------
+# Prometheus Configuration
+# ----------------------------------------------------------------------
+prometheus:
+  enabled: true
+  service:
+    type: NodePort
+    nodePort: 30090
+  prometheusSpec:
+    # Scrape configuration
+    scrapeInterval: "15s"
+    evaluationInterval: "15s"
+    retention: "7d"
+    
+    # CRITICAL: Setting these to false allows Prometheus Operator to discover
+    # ServiceMonitors, PodMonitors, and PrometheusRules across ALL namespaces
+    # without requiring them to match the Helm release label.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    podMonitorSelector: {}
+    ruleSelector: {}
+    
+    # Resource allocations
+    resources:
+      requests:
+        cpu: 200m
+        memory: 256Mi
+      limits:
+        cpu: 1000m
+        memory: 1024Mi
+
+    # Enable lifecycle endpoints (e.g. /-/reload)
+    enableAdminAPI: true
+
+# ----------------------------------------------------------------------
+# Grafana Configuration
+# ----------------------------------------------------------------------
+grafana:
+  enabled: true
+  adminPassword: "admin"
+  adminUser: "admin"
+  
+  service:
+    type: NodePort
+    nodePort: 30000
+    
+  # Enable Sidecar for automatic Dashboard and Datasource discovery via ConfigMaps
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+      folder: /tmp/dashboards
+      provider:
+        allowUiUpdates: true
+        foldersFromFilesStructure: true
+    datasources:
+      enabled: true
+      label: grafana_datasource
+      labelValue: "1"
+      searchNamespace: ALL
+
+  grafana.ini:
+    server:
+      root_url: "%(protocol)s://%(domain)s:%(http_port)s/"
+    auth.anonymous:
+      enabled: false
+    security:
+      allow_embedding: true
+
+  # Resource allocations
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ----------------------------------------------------------------------
+# Alertmanager Configuration
+# ----------------------------------------------------------------------
+alertmanager:
+  enabled: true
+  service:
+    type: NodePort
+    nodePort: 30093
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+# ----------------------------------------------------------------------
+# Node Exporter (Host Level Metrics)
+# ----------------------------------------------------------------------
+nodeExporter:
+  enabled: true
+
+# ----------------------------------------------------------------------
+# Kube-State-Metrics (Kubernetes Object Metrics)
+# ----------------------------------------------------------------------
+kubeStateMetrics:
+  enabled: true
+
+# ----------------------------------------------------------------------
+# Kubernetes Component Scraping Controls
+# ----------------------------------------------------------------------
+kubelet:
+  enabled: true
+
+kubeApiServer:
+  enabled: true
+
+kubeControllerManager:
+  enabled: false  # Often inaccessible over standard endpoints on local Kind
+
+kubeScheduler:
+  enabled: false  # Often inaccessible over standard endpoints on local Kind
+
+kubeProxy:
+  enabled: false
+
+kubeEtcd:
+  enabled: false

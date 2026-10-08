@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kubernetes Observability & Monitoring Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: rgba(18, 26, 43, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --primary: #3b82f6;
+      --primary-glow: rgba(59, 130, 246, 0.35);
+      --accent: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --font-main: 'Outfit', sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background: radial-gradient(circle at 10% 20%, #1e1b4b 0%, var(--bg) 80%);
+      color: var(--text);
+      font-family: var(--font-main);
+      min-height: 100vh;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 1100px;
+      width: 100%;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(59, 130, 246, 0.15);
+      color: #60a5fa;
+      padding: 0.35rem 0.85rem;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      margin-bottom: 1rem;
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 1.1rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      transition: transform 0.2s, border-color 0.2s;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+
+    button, .link-btn {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 0.65rem 1.1rem;
+      border-radius: 8px;
+      font-family: var(--font-main);
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      transition: all 0.2s;
+    }
+
+    button:hover, .link-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      transform: translateY(-1px);
+    }
+
+    button.primary, .link-btn.primary {
+      background: var(--primary);
+      border-color: var(--primary);
+      box-shadow: 0 4px 14px var(--primary-glow);
+    }
+
+    button.primary:hover, .link-btn.primary:hover {
+      background: #2563eb;
+    }
+
+    button.danger {
+      background: rgba(239, 68, 68, 0.2);
+      border-color: rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    button.danger:hover {
+      background: rgba(239, 68, 68, 0.3);
+    }
+
+    button.warning {
+      background: rgba(245, 158, 11, 0.2);
+      border-color: rgba(245, 158, 11, 0.4);
+      color: #fcd34d;
+    }
+
+    button.warning:hover {
+      background: rgba(245, 158, 11, 0.3);
+    }
+
+    .log-box {
+      background: #060911;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      max-height: 220px;
+      overflow-y: auto;
+      color: #a7f3d0;
+      margin-top: 1rem;
+      white-space: pre-wrap;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 1rem;
+      padding: 0.75rem;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+    }
+
+    .stat-item {
+      text-align: center;
+    }
+
+    .stat-val {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #60a5fa;
+    }
+
+    .stat-lbl {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 3rem;
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="badge">
+        <span class="badge-dot"></span> Cluster Online: Kind Multi-Node (v1.29)
+      </div>
+      <h1>Kubernetes Observability Stack</h1>
+      <p class="subtitle">Real-time metrics, tracing, and alerts powered by Prometheus & Grafana</p>
+    </header>
+
+    <div class="grid">
+      <!-- Quick Links Card -->
+      <div class="card">
+        <div class="card-title">
+          <span>📊</span> Monitoring Portals
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+          Direct access to the deployed observability infrastructure:
+        </p>
+        <div class="btn-group">
+          <a href="http://localhost:30000" target="_blank" class="link-btn primary">
+            📈 Open Grafana (:30000)
+          </a>
+          <a href="http://localhost:30090" target="_blank" class="link-btn">
+            🔥 Prometheus UI (:30090)
+          </a>
+          <a href="http://localhost:30093" target="_blank" class="link-btn">
+            🚨 Alertmanager (:30093)
+          </a>
+          <a href="/api/data" target="_blank" class="link-btn">
+            ⚡ Backend API
+          </a>
+        </div>
+      </div>
+
+      <!-- Traffic Generator & Simulator Card -->
+      <div class="card">
+        <div class="card-title">
+          <span>🎯</span> Metrics & Traffic Generator
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">
+          Trigger live requests to generate telemetry for Prometheus scrapers and Grafana dashboards:
+        </p>
+        <div class="btn-group">
+          <button onclick="sendRequest('/api/data')">Standard Request (200 OK)</button>
+          <button class="warning" onclick="sendRequest('/api/slow')">Slow Request (Latency)</button>
+          <button class="danger" onclick="sendRequest('/api/error')">Error Request (500)</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat-item">
+            <div id="stat-reqs" class="stat-val">0</div>
+            <div class="stat-lbl">Sent Requests</div>
+          </div>
+          <div class="stat-item">
+            <div id="stat-latency" class="stat-val">0 ms</div>
+            <div class="stat-lbl">Avg Latency</div>
+          </div>
+          <div class="stat-item">
+            <div id="stat-errs" class="stat-val">0</div>
+            <div class="stat-lbl">Errors</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Log -->
+    <div class="card" style="width: 100%;">
+      <div class="card-title">
+        <span>📜</span> Live Response Telemetry
+      </div>
+      <div id="log-output" class="log-box">[System initialized] Ready to dispatch requests to backend service...</div>
+    </div>
+
+    <footer>
+      Kubernetes Observability & Monitoring Stack &bull; Kind &bull; Helm &bull; Prometheus Operator &bull; Grafana
+    </footer>
+  </div>
+
+  <script>
+    let reqCount = 0;
+    let errCount = 0;
+    let totalLatency = 0;
+
+    async function sendRequest(path) {
+      const logBox = document.getElementById('log-output');
+      const start = performance.now();
+      try {
+        const res = await fetch(path);
+        const latency = Math.round(performance.now() - start);
+        const data = await res.json();
+        
+        reqCount++;
+        totalLatency += latency;
+        
+        if (!res.ok) {
+          errCount++;
+        }
+
+        updateStats(latency);
+        appendLog(`[${new Date().toLocaleTimeString()}] GET ${path} -> HTTP ${res.status} (${latency}ms)\n${JSON.stringify(data, null, 2)}`);
+      } catch (err) {
+        reqCount++;
+        errCount++;
+        const latency = Math.round(performance.now() - start);
+        updateStats(latency);
+        appendLog(`[${new Date().toLocaleTimeString()}] GET ${path} -> FAILED (${latency}ms): ${err.message}`);
+      }
+    }
+
+    function updateStats(lastLatency) {
+      document.getElementById('stat-reqs').innerText = reqCount;
+      document.getElementById('stat-errs').innerText = errCount;
+      document.getElementById('stat-latency').innerText = Math.round(totalLatency / reqCount) + ' ms';
+    }
+
+    function appendLog(text) {
+      const logBox = document.getElementById('log-output');
+      logBox.innerText = text + '\n\n' + logBox.innerText;
+    }
+  </script>
+</body>
+</html>

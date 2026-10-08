@@ -1,0 +1,55 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: app-observability-alerts
+  namespace: app
+  labels:
+    app: backend
+    role: alert-rules
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: application.rules
+      rules:
+        # Alert 1: High HTTP 5xx Error Rate
+        - alert: BackendHighErrorRate
+          expr: sum(rate(http_requests_total{http_status=~"5.."}[2m])) / sum(rate(http_requests_total[2m])) * 100 > 5
+          for: 1m
+          labels:
+            severity: critical
+            tier: api
+          annotations:
+            summary: "High HTTP error rate on Backend API (instance {{ $labels.instance }})"
+            description: "Backend HTTP 5xx error rate is currently at {{ $value | printf \"%.2f\" }}% (threshold > 5%)."
+
+        # Alert 2: High Request Latency (P95 > 500ms)
+        - alert: BackendHighLatency
+          expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[2m])) by (le)) > 0.5
+          for: 1m
+          labels:
+            severity: warning
+            tier: api
+          annotations:
+            summary: "High P95 latency on Backend API"
+            description: "Backend P95 latency is {{ $value | printf \"%.3f\" }}s over the last 2 minutes."
+
+        # Alert 3: Service Target Down
+        - alert: BackendServiceDown
+          expr: up{job="backend-service"} == 0
+          for: 30s
+          labels:
+            severity: critical
+            tier: infrastructure
+          annotations:
+            summary: "Backend service target is unreachable"
+            description: "Prometheus cannot scrape {{ $labels.instance }} for more than 30 seconds."
+
+        # Alert 4: Pod Restart / CrashLooping
+        - alert: AppPodRestarting
+          expr: rate(kube_pod_container_status_restarts_total{namespace="app"}[5m]) * 60 > 2
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Application pod is restarting frequently"
+            description: "Pod {{ $labels.pod }} in namespace 'app' has restarted multiple times."

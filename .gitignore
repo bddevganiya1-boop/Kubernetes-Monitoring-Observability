@@ -1,0 +1,37 @@
+# Environment and Local Configs
+.env
+*.local
+.DS_Store
+Thumbs.db
+
+# Kubernetes & Helm artifacts
+*.kubeconfig
+kubeconfig*
+*.tgz
+*.lock
+charts/
+
+# IDE / Editor Files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Python (Backend Source)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+
+# Logs & Temporary Files
+*.log
+tmp/
+scratch/
